@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>MetropolisJS</title>
+    <link rel="stylesheet" href="css/main.css">
+    <script src="js/platform.js"></script>
+    <script src="js/polymer.js"></script>
+    <script src="js/AudioContextMonkeyPatch.js"></script>
+    <script src="js/music.js"></script>
+    <script src="js/metropolis.js"></script>
+
+    <link rel="import" href="webcomponents/controls.html" >
+  </head>
+
+  <body>
+    <div id="controls">
+      <div>Play: <webaudio-switch id="play" width=48 height=48></webaudio-slider></div>
+      <div>Resolution: <webaudio-knob id="resolution" value=0 min=0 max=2 step=1></webaudio-knob></div>
+      <div>Tempo: <webaudio-slider id="tempo" value=120 direction="horiz" min=1 max=200 step=1></webaudio-slider></div>
+      <div>Cutoff: <webaudio-slider id="cutoff" direction="horiz" value=60 min=1 max=100 step=1></webaudio-slider></div>
+      <div>Q: <webaudio-slider id="q" value=25 direction="horiz" min=1 max=100 step=1></webaudio-slider></div>
+
+      <h3>Pitch</h3>
+      <div class="control-panel" id="pitches">
+        <webaudio-slider height=100 id="note_0" direction="vert" min=0 max=7 step=1></webaudio-slider>
+        <webaudio-slider height=100 id="note_1" direction="vert" min=0 max=7 step=1></webaudio-slider>
+        <webaudio-slider height=100 id="note_2" direction="vert" min=0 max=7 step=1></webaudio-slider>
+        <webaudio-slider height=100 id="note_3" direction="vert" min=0 max=7 step=1></webaudio-slider>
+        <webaudio-slider height=100 id="note_4" direction="vert" min=0 max=7 step=1></webaudio-slider>
+        <webaudio-slider height=100 id="note_5" direction="vert" min=0 max=7 step=1></webaudio-slider>
+        <webaudio-slider height=100 id="note_6" direction="vert" min=0 max=7 step=1></webaudio-slider>
+        <webaudio-slider height=100 id="note_7" direction="vert" min=0 max=7 step=1></webaudio-slider>
+        <webaudio-slider height=100 id="note_8" direction="vert" min=0 max=7 step=1></webaudio-slider>
+        <webaudio-slider height=100 id="note_9" direction="vert" min=0 max=7 step=1></webaudio-slider>
+        <webaudio-slider height=100 id="note_10" direction="vert" min=0 max=7 step=1></webaudio-slider>
+        <webaudio-slider height=100 id="note_11" direction="vert" min=0 max=7 step=1></webaudio-slider>
+        <webaudio-slider height=100 id="note_12" direction="vert" min=0 max=7 step=1></webaudio-slider>
+        <webaudio-slider height=100 id="note_13" direction="vert" min=0 max=7 step=1></webaudio-slider>
+        <webaudio-slider height=100 id="note_14" direction="vert" min=0 max=7 step=1></webaudio-slider>
+        <webaudio-slider height=100 id="note_15" direction="vert" min=0 max=7 step=1></webaudio-slider>
+      </div>
+
+      <h3>Pulse Count</h3>
+      <div class="control-panel" id="repeats">
+        <webaudio-slider height=100 id="note_0" direction="vert" value=1 min=1 max=8 step=1></webaudio-slider>
+        <webaudio-slider height=100 id="note_1" direction="vert" value=1 min=1 max=8 step=1></webaudio-slider>
+        <webaudio-slider height=100 id="note_2" direction="vert" value=1 min=1 max=8 step=1></webaudio-slider>
+        <webaudio-slider height=100 id="note_3" direction="vert" value=1 min=1 max=8 step=1></webaudio-slider>
+        <webaudio-slider height=100 id="note_4" direction="vert" value=1 min=1 max=8 step=1></webaudio-slider>
+        <webaudio-slider height=100 id="note_5" direction="vert" value=1 min=1 max=8 step=1></webaudio-slider>
+        <webaudio-slider height=100 id="note_6" direction="vert" value=1 min=1 max=8 step=1></webaudio-slider>
+        <webaudio-slider height=100 id="note_7" direction="vert" value=1 min=1 max=8 step=1></webaudio-slider>
+        <webaudio-slider height=100 id="note_8" direction="vert" value=1 min=1 max=8 step=1></webaudio-slider>
+        <webaudio-slider height=100 id="note_9" direction="vert" value=1 min=1 max=8 step=1></webaudio-slider>
+        <webaudio-slider height=100 id="note_10" direction="vert"value=1 min=1 max=8 step=1></webaudio-slider>
+        <webaudio-slider height=100 id="note_11" direction="vert"value=1 min=1 max=8 step=1></webaudio-slider>
+        <webaudio-slider height=100 id="note_12" direction="vert"value=1 min=1 max=8 step=1></webaudio-slider>
+        <webaudio-slider height=100 id="note_13" direction="vert"value=1 min=1 max=8 step=1></webaudio-slider>
+        <webaudio-slider height=100 id="note_14" direction="vert"value=1 min=1 max=8 step=1></webaudio-slider>
+        <webaudio-slider height=100 id="note_15" direction="vert"value=1 min=1 max=8 step=1></webaudio-slider>
+      </div>
+      <h3>Gate Mode</h3>
+      <div class="control-panel" id="modes">
+        <webaudio-slider height=100 id="note_0" direction="vert" value=1 min=0 max=3 step=1></webaudio-slider>
+        <webaudio-slider height=100 id="note_1" direction="vert" value=1 min=0 max=3 step=1></webaudio-slider>
+        <webaudio-slider height=100 id="note_2" direction="vert" value=1 min=0 max=3 step=1></webaudio-slider>
+        <webaudio-slider height=100 id="note_3" direction="vert" value=1 min=0 max=3 step=1></webaudio-slider>
+        <webaudio-slider height=100 id="note_4" direction="vert" value=1 min=0 max=3 step=1></webaudio-slider>
+        <webaudio-slider height=100 id="note_5" direction="vert" value=1 min=0 max=3 step=1></webaudio-slider>
+        <webaudio-slider height=100 id="note_6" direction="vert" value=1 min=0 max=3 step=1></webaudio-slider>
+        <webaudio-slider height=100 id="note_7" direction="vert" value=1 min=0 max=3 step=1></webaudio-slider>
+        <webaudio-slider height=100 id="note_8" direction="vert" value=1 min=0 max=3 step=1></webaudio-slider>
+        <webaudio-slider height=100 id="note_9" direction="vert" value=1 min=0 max=3 step=1></webaudio-slider>
+        <webaudio-slider height=100 id="note_10" direction="vert"value=1 min=0 max=3 step=1></webaudio-slider>
+        <webaudio-slider height=100 id="note_11" direction="vert"value=1 min=0 max=3 step=1></webaudio-slider>
+        <webaudio-slider height=100 id="note_12" direction="vert"value=1 min=0 max=3 step=1></webaudio-slider>
+        <webaudio-slider height=100 id="note_13" direction="vert"value=1 min=0 max=3 step=1></webaudio-slider>
+        <webaudio-slider height=100 id="note_14" direction="vert"value=1 min=0 max=3 step=1></webaudio-slider>
+        <webaudio-slider height=100 id="note_15" direction="vert"value=1 min=0 max=3 step=1></webaudio-slider>
+      </div>
+    </div>
+   </body>
+</html>
