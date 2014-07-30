@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <title>MetropolisJS</title>
     <link rel="stylesheet" href="css/main.css">
+    <script src="js/lodash.min.js"></script>
     <script src="js/platform.js"></script>
     <script src="js/polymer.js"></script>
     <script src="js/AudioContextMonkeyPatch.js"></script>
@@ -14,12 +15,24 @@
   </head>
 
   <body>
-    <div id="controls">
-      <div>Play: <webaudio-switch id="play" width=48 height=48></webaudio-slider></div>
-      <div>Resolution: <webaudio-knob id="resolution" value=0 min=0 max=2 step=1></webaudio-knob></div>
-      <div>Tempo: <webaudio-slider id="tempo" value=120 direction="horiz" min=1 max=200 step=1></webaudio-slider></div>
-      <div>Cutoff: <webaudio-slider id="cutoff" direction="horiz" value=60 min=1 max=100 step=1></webaudio-slider></div>
-      <div>Q: <webaudio-slider id="q" value=25 direction="horiz" min=1 max=100 step=1></webaudio-slider></div>
+    <div id="controls" style="position:relative; width:800px">
+
+      <div class="top">
+        <div class="switch" style="left:20px"><webaudio-switch id="play" width=32 height=32></webaudio-slider></div>
+        <div class="knob" style="left:100px"><webaudio-knob id="resolution" width=48 height=48 value=0 min=0 max=2 step=1></webaudio-knob></div>
+        <div class="knob" style="left:190px"><webaudio-knob id="tempo" width=48 height=48 value=120 min=1 max=200 step=1></webaudio-slider></div>
+        <div class="knob" style="left:290px"><webaudio-knob id="cutoff" width=48 height=48 value=60 min=1 max=100 step=1></webaudio-slider></div>
+        <div class="knob" style="left:390px"><webaudio-knob id="q" width=48 height=48 value=25 min=1 max=100 step=1></webaudio-slider></div>
+        <div class="switch" style="left:480px"><webaudio-switch id="random" type="kick" width=32 height=32></webaudio-slider></div>
+        <div class="switch" style="left:560px"><webaudio-switch id="reset" type="kick" width=32 height=32></webaudio-slider></div>
+        <span style="left:19px">play</span>
+        <span style="left:100px">divide</span>
+        <span style="left:194px">tempo</span>
+        <span style="left:295px">cutoff</span>
+        <span style="left:409px">q</span>
+        <span style="left:475px">rand</span>
+        <span style="left:555px">reset</span>
+      </div>
 
       <h3>Pitch</h3>
       <div class="control-panel" id="pitches">

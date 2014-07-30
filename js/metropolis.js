@@ -1,56 +1,7 @@
-var audioContext = null;
-var isPlaying = false;      // Are we currently playing?
-var startTime;              // The start time of the entire sequence.
-var current16thNote;        // What note is currently last scheduled?
-var lookahead = 25.0;       // How frequently to call scheduling function (ms)
-var scheduleAheadTime = 0.1;    // How far ahead to schedule audio (sec)
-var tempo;
-// This is calculated from lookahead, and overlaps
-// with next interval (in case the timer is late)
-var nextNoteTime = 0.0;     // when the next note is due.
-var noteResolution = 0;     // 0 == 16th, 1 == 8th, 2 == quarter note
-var gateLength = 0.3; // relative note length
-var timerID = 0;            // setInterval identifier.
-var oscillators = [];
-var masterGain,
-    masterDelay,
-    wetLevel,
-    masterFilter;
 
 var canvas,                 // the canvas element
 canvasContext;          // canvasContext is the canvas' context 2D
-var last16thNoteDrawn = -1; // the last "box" we drew on the screen
-var notesInQueue = [];      // the notes that have been put into the web audio,
                             // and may or may not have played yet. {note, time}
-var MODES = {
-  'REST': 0,
-  'SINGLE': 1,
-  'REPEAT': 2,
-  'HOLD': 3
-};
-
-var notes = Note.fromLatin('G3').scale('natural minor');
-var DEFAULT_STEPS = [
-  // mode = numeric mode
-  // repeats = num times to play or length to hold
-  // note = frequency
-  { mode: MODES['SINGLE'], repeats: 1, note: notes[0].frequency() },
-  { mode: MODES['SINGLE'], repeats: 1, note: notes[1].frequency() },
-  { mode: MODES['SINGLE'], repeats: 1, note: notes[2].frequency() },
-  { mode: MODES['SINGLE'], repeats: 1, note: notes[3].frequency() },
-  { mode: MODES['SINGLE'], repeats: 1, note: notes[4].frequency() },
-  { mode: MODES['SINGLE'], repeats: 1, note: notes[5].frequency() },
-  { mode: MODES['SINGLE'], repeats: 1, note: notes[6].frequency() },
-  { mode: MODES['SINGLE'], repeats: 1, note: notes[7].frequency() },
-  { mode: MODES['SINGLE'], repeats: 1, note: notes[0].frequency() },
-  { mode: MODES['SINGLE'], repeats: 1, note: notes[1].frequency() },
-  { mode: MODES['SINGLE'], repeats: 1, note: notes[2].frequency() },
-  { mode: MODES['SINGLE'], repeats: 1, note: notes[3].frequency() },
-  { mode: MODES['SINGLE'], repeats: 1, note: notes[4].frequency() },
-  { mode: MODES['SINGLE'], repeats: 1, note: notes[5].frequency() },
-  { mode: MODES['SINGLE'], repeats: 1, note: notes[6].frequency() },
-  { mode: MODES['SINGLE'], repeats: 1, note: notes[7].frequency() }
-]
 
 
 // First, let's shim the requestAnimationFrame API, with a setTimeout fallback
@@ -65,41 +16,93 @@ window.requestAnimFrame = (function(){
   };
 })();
 
-function nextNote(advance) {
+var Sequencer = function(tempo) {
+  this.audioContext = new AudioContext();
+  this.tempo = tempo;
+  this.stepInstructions = {};
+  // This is calculated from lookahead, and overlaps
+  // with next interval (in case the timer is late)
+  this.nextNoteTime = 0.0;     // when the next note is due.
+  this.noteResolution = 0;     // 0 == 16th, 1 == 8th, 2 == quarter note
+  this.gateLength = 0.3; // relative note length
+  this.timerID = 0;            // setInterval identifier.
+  this.current16thNote;        // What note is currently last scheduled?
+  this.lookahead = 25.0;       // How frequently to call scheduling function (ms)
+  this.scheduleAheadTime = 0.1;    // How far ahead to schedule audio (sec)
+  this.last16thNoteDrawn = -1; // the last "box" we drew on the screen
+  this.notesInQueue = [];      // the notes that have been put into the web audio,
+  this.MODES = {
+    'REST': 0,
+    'SINGLE': 1,
+    'REPEAT': 2,
+    'HOLD': 3
+  };
+  this.isPlaying = false;      // Are we currently playing?
+  this.oscillators = [];
+
+  this.notes = Note.fromLatin('G3').scale('natural minor');
+  this.DEFAULT_STEPS = [
+    // mode = numeric mode
+    // repeats = num times to play or length to hold
+    // note = frequency
+    { mode: this.MODES['SINGLE'], repeats: 1, note: this.notes[0].frequency() },
+    { mode: this.MODES['SINGLE'], repeats: 1, note: this.notes[1].frequency() },
+    { mode: this.MODES['SINGLE'], repeats: 1, note: this.notes[2].frequency() },
+    { mode: this.MODES['SINGLE'], repeats: 1, note: this.notes[3].frequency() },
+    { mode: this.MODES['SINGLE'], repeats: 1, note: this.notes[4].frequency() },
+    { mode: this.MODES['SINGLE'], repeats: 1, note: this.notes[5].frequency() },
+    { mode: this.MODES['SINGLE'], repeats: 1, note: this.notes[6].frequency() },
+    { mode: this.MODES['SINGLE'], repeats: 1, note: this.notes[7].frequency() },
+    { mode: this.MODES['SINGLE'], repeats: 1, note: this.notes[0].frequency() },
+    { mode: this.MODES['SINGLE'], repeats: 1, note: this.notes[1].frequency() },
+    { mode: this.MODES['SINGLE'], repeats: 1, note: this.notes[2].frequency() },
+    { mode: this.MODES['SINGLE'], repeats: 1, note: this.notes[3].frequency() },
+    { mode: this.MODES['SINGLE'], repeats: 1, note: this.notes[4].frequency() },
+    { mode: this.MODES['SINGLE'], repeats: 1, note: this.notes[5].frequency() },
+    { mode: this.MODES['SINGLE'], repeats: 1, note: this.notes[6].frequency() },
+    { mode: this.MODES['SINGLE'], repeats: 1, note: this.notes[7].frequency() }
+  ]
+
+  this.pitchSliders = document.querySelectorAll('#pitches webaudio-slider');
+  this.modeSliders = document.querySelectorAll('#modes webaudio-slider');
+  this.repeatSliders = document.querySelectorAll('#repeats webaudio-slider');
+}
+
+Sequencer.prototype.nextNote = function(advance) {
   // Advance current note and time by a 16th note...
-  var secondsPerBeat = 60.0 / tempo;    // Notice this picks up the CURRENT
+  var secondsPerBeat = 60.0 / this.tempo;    // Notice this picks up the CURRENT
   // tempo value to calculate beat length.
-  nextNoteTime += 0.25 * secondsPerBeat;    // Add beat length to last beat time
+  this.nextNoteTime += 0.25 * secondsPerBeat;    // Add beat length to last beat time
 
   if(advance != false) {
-    current16thNote++;    // Advance the beat number, wrap to zero
-    if (current16thNote == 16) {
-      current16thNote = 0;
+    this.current16thNote++;    // Advance the beat number, wrap to zero
+    if (this.current16thNote == 16) {
+      this.current16thNote = 0;
     }
   }
 }
 
-function scheduleNote(beatNumber, time, noteHertz, rest, lengthMultiplier){
+Sequencer.prototype.scheduleNote = function(beatNumber, time, noteHertz, rest, lengthMultiplier){
   // push the note on the queue, even if we're not playing.
-  notesInQueue.push( { note: beatNumber, time: time } );
+  this.notesInQueue.push( { note: beatNumber, time: time } );
   if(typeof(lengthMultiplier) === 'undefined') lengthMultiplier = 1;
 
-  if ( (noteResolution==1) && (beatNumber%2))
+  if ( (this.noteResolution==1) && (beatNumber%2))
     return; // we're not playing non-8th 16th notes
-  if ( (noteResolution==2) && (beatNumber%4))
+  if ( (this.noteResolution==2) && (beatNumber%4))
     return; // we're not playing non-quarter 8th notes
 
   if(!rest) {
     // create an oscillator
-    var osc = new Oscillator(audioContext, noteHertz),
-        gain = audioContext.createGain(),
+    var osc = new Oscillator(this.audioContext, noteHertz),
+        gain = this.audioContext.createGain(),
         attackTime = 0.02,
         releaseTime = 0.01,
-        trueNoteLength = noteLength() * lengthMultiplier,
+        trueNoteLength = this.noteLength() * lengthMultiplier,
         noteEnd = time + attackTime + trueNoteLength + releaseTime;
 
     osc.connect(gain);
-    gain.connect(masterGain);
+    gain.connect(this.masterGain);
 
 
     gain.gain.value = 0;
@@ -111,226 +114,263 @@ function scheduleNote(beatNumber, time, noteHertz, rest, lengthMultiplier){
 
     osc.start(time);
     osc.stop(noteEnd);
-    oscillators.push(osc);
+    this.oscillators.push(osc);
   }
 }
 
-function noteLength() {
-  return (60.0 / tempo) * gateLength;
+Sequencer.prototype.noteLength = function() {
+  return (60.0 / this.tempo) * this.gateLength;
 }
 
 // Randomly change all step values
-function randomize() {
-  for(var step in stepInstructions) {
-    var note = notes[randomNumberInRange(notes.length)].frequency();
+Sequencer.prototype.randomize = function() {
+  for(var step in this.stepInstructions) {
+    var pitchNum = this.randomNumberInRange(this.notes.length),
+        note = this.notes[pitchNum].frequency();
 
-    stepInstructions[step].mode = randomNumberInRange(4);
-    stepInstructions[step].repeats = randomNumberInRange(8, 1);
-    stepInstructions[step].note = note;
+    var data = {
+      note: note,
+      mode: this.randomNumberInRange(4),
+      repeats: this.randomNumberInRange(8, 1)
+    };
+
+    this.updateValues(step, data, true);
   }
-  console.table(stepInstructions);
+
 }
 
-function reset() {
-  stepInstructions = JSON.parse(JSON.stringify(DEFAULT_STEPS));
+Sequencer.prototype.reset = function() {
+  for( var step in this.DEFAULT_STEPS ) {
+    var data = {
+      note: this.DEFAULT_STEPS[step].note,
+      mode: this.DEFAULT_STEPS[step].mode,
+      repeats: this.DEFAULT_STEPS[step].repeats
+    };
+
+    this.updateValues(step, data, true);
+  }
 }
 
-function randomNumberInRange(range, min) {
+Sequencer.prototype.updateValues = function(step, data, updateDisplay) {
+    this.stepInstructions[step] = {};
+    this.stepInstructions[step].mode = data.mode;
+    this.stepInstructions[step].repeats = data.repeats;
+    this.stepInstructions[step].note = data.note;
+
+
+    if(updateDisplay === true) {
+
+      var pitchNum = _.findIndex(this.notes, function(note){
+        return Math.round(note.frequency()) == Math.round(data.note);
+      });
+
+      this.pitchSliders[step].setValue(pitchNum);
+      this.repeatSliders[step].setValue(data.repeats);
+      this.modeSliders[step].setValue(data.mode);
+    }
+}
+
+Sequencer.prototype.randomNumberInRange = function(range, min) {
   var num = Math.floor(Math.random() * range);
   var min = min || 0;
 
   return min < num ? num : min;
 }
 
-function scheduler() {
+Sequencer.prototype.scheduler = function() {
   // while there are notes that will need to play before the next interval,
   // schedule them and advance the pointer.
-  while (nextNoteTime < audioContext.currentTime + scheduleAheadTime ) {
-    var config = stepInstructions[current16thNote];
+  while (this.nextNoteTime < this.audioContext.currentTime + this.scheduleAheadTime ) {
+    var config = this.stepInstructions[this.current16thNote];
 
     // cleanup this brainfart
     // could make nextNote do the scheduleNote work inside. pass all the args
-    if(config.mode == MODES['HOLD']) {
-      scheduleNote(current16thNote, nextNoteTime, config.note, config.mode == MODES['REST'], config.repeats);
+    if(config.mode == this.MODES['HOLD']) {
+      this.scheduleNote(this.current16thNote, this.nextNoteTime, config.note, config.mode == this.MODES['REST'], config.repeats);
       for(var i = 0; i < config.repeats; i++) {
-        nextNote(i == config.repeats-1);
+        this.nextNote(i == config.repeats-1);
       }
     } else {
       for(var i = 0; i < config.repeats; i++) {
-        var rest = config.mode === MODES['REST']
-                   || (config.mode === MODES['SINGLE'] && i > 0);
+        var rest = config.mode === this.MODES['REST']
+                   || (config.mode === this.MODES['SINGLE'] && i > 0);
 
-        scheduleNote(current16thNote, nextNoteTime, config.note, rest);
-        nextNote(i == config.repeats-1);
+        this.scheduleNote(this.current16thNote, this.nextNoteTime, config.note, rest);
+        this.nextNote(i == config.repeats-1);
       }
     }
 
-    var oscs = oscillators.length
+    var oscs = this.oscillators.length
     if(oscs >= 100){
-      oscillators = oscillators.slice(oscs-20, oscs);
-      console.log('purged oscillators', oscillators.length);
+      this.oscillators = this.oscillators.slice(oscs-20, oscs);
+      console.log('purged oscillators', this.oscillators.length);
     }
   }
 
-  timerID = window.setTimeout(scheduler, lookahead);
+  this.timerID = window.setTimeout(function(){
+    this.scheduler();
+  }.bind(this), this.lookahead);
 }
 
-function play() {
-  isPlaying = !isPlaying;
+Sequencer.prototype.play = function() {
+  this.isPlaying = !this.isPlaying;
 
-  if (isPlaying) { // start playing
-    current16thNote = 0;
-    nextNoteTime = audioContext.currentTime;
-    scheduler();    // kick off scheduling
-    return "playing";
+  if (this.isPlaying) { // start playing
+    this.current16thNote = 0;
+    this.nextNoteTime = this.audioContext.currentTime;
+    this.scheduler();
   } else {
-    window.clearTimeout( timerID );
-    return "stopped";
+    window.clearTimeout(this.timerID);
   }
 }
 
-function createCanvas() {
-  var container = document.createElement('div');
-  container.className = "container";
-  canvas = document.createElement('canvas');
-  canvasContext = canvas.getContext('2d');
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-  document.body.appendChild(container);
-  container.appendChild(canvas);
-  canvasContext.strokeStyle = "#ffffff";
-  canvasContext.lineWidth = 2;
-}
+//function createCanvas() {
+  //var container = document.createElement('div');
+  //container.className = "container";
+  //canvas = document.createElement('canvas');
+  //canvasContext = canvas.getContext('2d');
+  //canvas.width = window.innerWidth;
+  //canvas.height = window.innerHeight;
+  //document.body.appendChild(container);
+  //container.appendChild(canvas);
+  //canvasContext.strokeStyle = "#ffffff";
+  //canvasContext.lineWidth = 2;
+//}
 
-function resetCanvas (e) {
-  // resize the canvas - but remember - this clears the canvas too.
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
+//function resetCanvas(e) {
+  //// resize the canvas - but remember - this clears the canvas too.
+  //canvas.width = window.innerWidth;
+  //canvas.height = window.innerHeight;
 
-  //make sure we scroll to the top left.
-  window.scrollTo(0,0);
-}
+  ////make sure we scroll to the top left.
+  //window.scrollTo(0,0);
+//}
 
-function draw() {
-  var currentNote = last16thNoteDrawn;
-  var currentTime = audioContext.currentTime;
+//function draw() {
+  //var currentNote = last16thNoteDrawn;
+  //var currentTime = audioContext.currentTime;
 
-  while (notesInQueue.length && notesInQueue[0].time < currentTime) {
-    currentNote = notesInQueue[0].note;
-    notesInQueue.splice(0,1);   // remove note from queue
-  }
+  //while (notesInQueue.length && notesInQueue[0].time < currentTime) {
+    //currentNote = notesInQueue[0].note;
+    //notesInQueue.splice(0,1);   // remove note from queue
+  //}
 
-  // We only need to draw if the note has moved.
-  if (last16thNoteDrawn != currentNote) {
-    var x = Math.floor( canvas.width / 18 );
-    canvasContext.clearRect(0,0,canvas.width, canvas.height);
-    for (var i=0; i<16; i++) {
-      canvasContext.fillStyle = ( currentNote == i ) ?
-        ((currentNote%4 === 0)?"red":"blue") : "black";
-      canvasContext.fillRect( x * (i+1), x, x/2, x/2 );
-    }
-    last16thNoteDrawn = currentNote;
-  }
+  //// We only need to draw if the note has moved.
+  //if (last16thNoteDrawn != currentNote) {
+    //var x = Math.floor( canvas.width / 18 );
+    //canvasContext.clearRect(0,0,canvas.width, canvas.height);
+    //for (var i=0; i<16; i++) {
+      //canvasContext.fillStyle = ( currentNote == i ) ?
+        //((currentNote%4 === 0)?"red":"blue") : "black";
+      //canvasContext.fillRect( x * (i+1), x, x/2, x/2 );
+    //}
+    //last16thNoteDrawn = currentNote;
+  //}
 
-  // set up to draw again
-  requestAnimFrame(draw);
-}
+  //// set up to draw again
+  //requestAnimFrame(draw);
+//}
 
-function init(){
-  createCanvas();
+Sequencer.prototype.init = function(){
+  //createCanvas();
 
-  tempo = document.querySelector('#tempo').value;
-  // NOTE: THIS RELIES ON THE MONKEYPATCH LIBRARY BEING LOADED FROM
-  // Http://cwilso.github.io/AudioContext-MonkeyPatch/AudioContextMonkeyPatch.js
-  // TO WORK ON CURRENT CHROME!!  But this means our code can be properly
-  // spec-compliant, and work on Chrome, Safari and Firefox.
+  this.masterFilter = new Filter(this.audioContext,
+                                document.querySelector('#cutoff').value,
+                                document.querySelector('#q').value);
+  this.masterDelay = new Delay(this.audioContext, this.tempo);
 
-  audioContext = new AudioContext();
-  masterGain = audioContext.createGain();
-  masterFilter = new Filter(audioContext,
-                            document.querySelector('#cutoff').value,
-                            document.querySelector('#q').value);
-  masterDelay = new Delay(audioContext);
+  this.masterGain = this.audioContext.createGain();
+  this.masterGain.gain.value = 0.2;
 
-  masterGain.gain.value = 0.5;
+  this.masterGain.connect(this.masterFilter.getNode());
+  this.masterFilter.getNode().connect(this.masterDelay.getNode());
+  this.masterDelay.connect(this.audioContext.destination);
+  this.masterFilter.connect(this.audioContext.destination);
 
-  masterGain.connect(masterFilter.getNode());
+  //window.onorientationchange = resetCanvas;
+  //window.onresize = resetCanvas;
 
-  masterFilter.getNode().connect(masterDelay.getNode());
-  masterDelay.connect(audioContext.destination);
-  masterFilter.connect(audioContext.destination);
+  this.setupControls();
 
-  window.onorientationchange = resetCanvas;
-  window.onresize = resetCanvas;
-
-  setupControls();
   // Setup initial step config
-  reset();
+  this.reset();
 
   // Start
-  requestAnimFrame(draw);
+  requestAnimFrame(function(){ this.draw }.bind(this), false);
 }
 
-function setupControls() {
-  freqs = {};
-  for(var i = 0; i < notes.length; i++) {
-    freqs[notes[i].latin()] = notes[i].frequency();
+Sequencer.prototype.setupControls = function() {
+  for(var i = 0; i < this.pitchSliders.length; ++i) {
+    this.pitchSliders[i].addEventListener('change', function(e){
+      this.changePitch(e);
+    }.bind(this));
   }
 
-  var pitchSliders = document.querySelectorAll('#pitches webaudio-slider');
-  for(var i = 0; i < pitchSliders.length; ++i) {
-    pitchSliders[i].addEventListener('change', changePitch);
+  for(var i = 0; i < this.modeSliders.length; ++i) {
+    this.modeSliders[i].addEventListener('change', function(e){
+      this.changeMode(e);
+    }.bind(this));
   }
 
-  var modeSliders = document.querySelectorAll('#modes webaudio-slider');
-  for(var i = 0; i < modeSliders.length; ++i) {
-    modeSliders[i].addEventListener('change', changeMode);
+  for(var i = 0; i < this.repeatSliders.length; ++i) {
+    this.repeatSliders[i].addEventListener('change', function(e){
+      this.changeRepeat(e);
+    }.bind(this));
   }
 
-  var repeatSliders = document.querySelectorAll('#repeats webaudio-slider');
-  for(var i = 0; i < repeatSliders.length; ++i) {
-    repeatSliders[i].addEventListener('change', changeRepeat);
-  }
+  document.querySelector('#cutoff').addEventListener('change', function(e){
+    this.masterFilter.setCutoff(e.target.value);
+  }.bind(this));
 
-  document.querySelector('#cutoff').addEventListener('change', changeCutoff);
-  document.querySelector('#q').addEventListener('change', changeQ);
-  document.querySelector('#play').addEventListener('change', play);
-  document.querySelector('#tempo').addEventListener('change', changeTempo);
-  document.querySelector('#resolution').addEventListener('change', changeStepResolution);
+  document.querySelector('#q').addEventListener('change', function(e){
+    this.masterFilter.setQ(e.target.value);
+  }.bind(this));
+
+  document.querySelector('#play').addEventListener('change', function(e){
+    this.play();
+  }.bind(this));
+
+  document.querySelector('#tempo').addEventListener('change', function(e){
+    this.changeTempo(e);
+  }.bind(this));
+
+  document.querySelector('#resolution').addEventListener('change', function(e){
+    this.changeStepResolution(e);
+  }.bind(this));
+
+  document.querySelector('#random').addEventListener('click', function(e){
+    this.randomize();
+  }.bind(this));
+
+  document.querySelector('#reset').addEventListener('click', function(e){
+    this.reset();
+  }.bind(this));
 }
 
-function changeTempo(e) {
-  tempo = e.target.value;
+Sequencer.prototype.changeTempo = function(e) {
+  this.tempo = e.target.value;
 }
 
-function changeStepResolution(e) {
-  noteResolution = e.target.value;
+Sequencer.prototype.changeStepResolution = function (e) {
+  this.noteResolution = e.target.value;
 }
 
-function changeCutoff(e) {
-  masterFilter.setCutoff(e.target.value);
+Sequencer.prototype.changePitch = function(e) {
+  var stepIdx = this.idFromString(e.target.id);
+  this.stepInstructions[stepIdx].note = this.notes[e.target.value].frequency();
 }
 
-function changeQ(e) {
-  masterFilter.setQ(e.target.value);
+Sequencer.prototype.changeMode = function(e) {
+  var stepIdx = this.idFromString(e.target.id);
+  this.stepInstructions[stepIdx].mode = e.target.value;
 }
 
-function changePitch(e) {
-  var stepIdx = idFromString(e.target.id);
-  stepInstructions[stepIdx].note = notes[e.target.value].frequency();
+Sequencer.prototype.changeRepeat = function(e) {
+  var stepIdx = this.idFromString(e.target.id);
+  this.stepInstructions[stepIdx].repeats = e.target.value;
 }
 
-function changeMode(e) {
-  var stepIdx = idFromString(e.target.id);
-  stepInstructions[stepIdx].mode = e.target.value;
-}
-
-function changeRepeat(e) {
-  var stepIdx = idFromString(e.target.id);
-  stepInstructions[stepIdx].repeats = e.target.value;
-}
-
-function idFromString(str) {
+Sequencer.prototype.idFromString = function(str) {
   var split = str.split('_');
   return split[1];
 }
@@ -345,7 +385,9 @@ var Oscillator = function(audioContext, frequency) {
 };
 
 Oscillator.prototype.setFrequency = function(frequency) {
-  this.node.frequency.value = frequency || 440;
+  var portamento = 0;
+  this.node.frequency.exponentialRampToValueAtTime(frequency, this.ctx.currentTime + portamento)
+  //this.node.frequency.value = frequency || 440;
 };
 
 Oscillator.prototype.connect = function(nextNode) {
@@ -365,10 +407,11 @@ Oscillator.prototype.getNode = function() {
 };
 
 
-var Delay = function(audioContext) {
+var Delay = function(audioContext, tempo) {
   this.wet = 0.2;
+  this.tempo = tempo;
   this.node = audioContext.createDelay();
-  this.setDelayTime(tempo/3);
+  this.setDelayTime(this.tempo/3);
   this.gainNode = audioContext.createGain();
   this.gainNode.gain.value = this.wet;
 }
@@ -414,7 +457,7 @@ Filter.prototype.setCutoff = function(value) {
   // Compute a multiplier from 0 to 1 based on an exponential scale.
   var multiplier = Math.pow(2, numberOfOctaves * (value - 1.0));
 
-  console.log("Oct", numberOfOctaves, "Mult", multiplier, "Final", maxValue * multiplier);
+  //console.log("Oct", numberOfOctaves, "Mult", multiplier, "Final", maxValue * multiplier);
 
   // Get back to the frequency value between min and max.
   this.lowpass.frequency.linearRampToValueAtTime(maxValue * multiplier, this.now());
@@ -435,5 +478,10 @@ Filter.prototype.getNode = function() {
 };
 
 
-
-window.addEventListener("load", init );
+Sequencer.prototype.run = function() {
+  window.addEventListener('load', function(e) {
+    var tempo = document.querySelector('#tempo').value;
+    window.metropolis = new Sequencer(tempo);
+    window.metropolis.init();
+  }.bind(this), false);
+}();
