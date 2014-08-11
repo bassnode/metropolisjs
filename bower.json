@@ -1,0 +1,26 @@
+{
+  "name": "metropolisjs",
+  "version": "0.0.0",
+  "authors": [
+    "Ed Hickey <bassnode@gmail.com>"
+  ],
+  "description": "Intellijel's Metropolis sequencer, in javascript",
+  "main": "index.html",
+  "keywords": [
+    "music"
+  ],
+  "license": "MIT",
+  "private": true,
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ],
+  "dependencies": {
+    "lodash": "~2.4.1",
+    "polymer": "~0.3.3",
+    "music.js": "https://github.com/gregjopa/music.js.git"
+  }
+}
