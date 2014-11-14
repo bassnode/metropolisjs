@@ -1,20 +1,4 @@
-
-var canvas,                 // the canvas element
-canvasContext;          // canvasContext is the canvas' context 2D
-                            // and may or may not have played yet. {note, time}
-
-
-// First, let's shim the requestAnimationFrame API, with a setTimeout fallback
-window.requestAnimFrame = (function(){
-  return  window.requestAnimationFrame ||
-    window.webkitRequestAnimationFrame ||
-      window.mozRequestAnimationFrame ||
-        window.oRequestAnimationFrame ||
-          window.msRequestAnimationFrame ||
-            function( callback ){
-    window.setTimeout(callback, 1000 / 60);
-  };
-})();
+// MetropolisJS
 
 var Sequencer = function(tempo) {
   this.audioContext = new AudioContext();
@@ -159,7 +143,7 @@ Sequencer.prototype.updateValues = function(step, data, updateDisplay) {
     if(updateDisplay === true) {
 
       var pitchNum = _.findIndex(this.notes, function(note){
-        return Math.round(note.frequency()) == Math.round(data.note);
+        return Math.round(note.frequency()) === Math.round(data.note);
       });
 
       this.pitchSliders[step].setValue(pitchNum);
@@ -178,7 +162,7 @@ Sequencer.prototype.randomNumberInRange = function(range, min) {
 Sequencer.prototype.scheduler = function() {
   // while there are notes that will need to play before the next interval,
   // schedule them and advance the pointer.
-  while (this.nextNoteTime < this.audioContext.currentTime + this.scheduleAheadTime ) {
+  while(this.nextNoteTime < this.audioContext.currentTime + this.scheduleAheadTime) {
     var config = this.stepInstructions[this.current16thNote];
 
     // cleanup this brainfart
@@ -222,6 +206,9 @@ Sequencer.prototype.play = function() {
 };
 
 Sequencer.prototype.init = function(){
+  // Setup initial step config
+  this.reset();
+
   this.masterFilter = new Filter(this.audioContext,
                                 document.querySelector('#cutoff').value,
                                 document.querySelector('#q').value);
@@ -236,10 +223,6 @@ Sequencer.prototype.init = function(){
   this.masterFilter.connect(this.audioContext.destination);
 
   this.setupControls();
-
-  // Setup initial step config
-  this.reset();
-
 };
 
 Sequencer.prototype.setupControls = function() {
@@ -331,7 +314,6 @@ var Oscillator = function(audioContext, frequency) {
 Oscillator.prototype.setFrequency = function(frequency) {
   var portamento = 0;
   this.node.frequency.exponentialRampToValueAtTime(frequency, this.ctx.currentTime + portamento);
-  //this.node.frequency.value = frequency || 440;
 };
 
 Oscillator.prototype.connect = function(nextNode) {
